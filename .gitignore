@@ -1,6 +1,8 @@
 # Virtual environment
+# Gitignore
 venv/
 .venv/
+
 
 # Python cache
 __pycache__/
