@@ -1,8 +1,6 @@
 # Virtual environment
-# Gitignore
 venv/
 .venv/
-
 
 # Python cache
 __pycache__/
@@ -24,3 +22,6 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+# Machine Learning Assets & Outputs
+*.pkl
+.gradio/
