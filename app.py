@@ -1,5 +1,8 @@
 import gradio as gr
 import joblib
+import os
+import csv
+from datetime import datetime
 
 # Load your saved models
 model = joblib.load('spam_detector_model.pkl')
@@ -29,12 +32,30 @@ def classify_sms(message):
     
     return label_string, f"{class_probability:.2f}%"
 
+# New Feature: Function to log misclassified ham messages
+def flag_as_ham(message):
+    if not message.strip():
+        return "⚠️ Cannot flag an empty message."
+        
+    log_file = "feedback_logs.csv"
+    file_exists = os.path.isfile(log_file)
+    
+    # Append the misclassified text to a CSV file for future retraining
+    with open(log_file, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["Timestamp", "Text", "True_Label", "Predicted_Label"])
+        writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message, "HAM", "SPAM"])
+        
+    return "✅ Message logged! This data will be used to retrain the model."
+
 # Custom CSS for styling components
 custom_css = """
 body { background-color: #f9fafb; }
 .container { max-width: 900px; margin: auto; padding-top: 2rem; }
 .header { text-align: center; margin-bottom: 2rem; }
 .submit-btn { background-color: #2563eb !important; color: white !important; }
+.flag-btn { background-color: #ef4444 !important; color: white !important; margin-top: 1rem; }
 """
 
 # Build the improved visual UI using standard blocks
@@ -61,17 +82,29 @@ with gr.Blocks(title="SMS Spam Detector") as demo:
                 )
                 submit_btn = gr.Button("🔍 Analyze Message", elem_classes="submit-btn")
             
-            # Right Column: Visual Results
+            # Right Column: Visual Results & Feedback
             with gr.Column(scale=1):
                 gr.Markdown("### Classification Analysis")
                 output_label = gr.Label(label="Prediction Result")
                 output_prob = gr.Textbox(label="Confidence Level", interactive=False)
+                
+                # Feedback Interface Elements
+                gr.Markdown("### 🛠️ Model Correction")
+                flag_btn = gr.Button("🚩 Flag: This is actually HAM", elem_classes="flag-btn")
+                feedback_status = gr.Markdown("") 
         
         # Link the button action to our classification function
         submit_btn.click(
             fn=classify_sms,
             inputs=input_text,
             outputs=[output_label, output_prob]
+        )
+        
+        # Link the flag button to the feedback logging function
+        flag_btn.click(
+            fn=flag_as_ham,
+            inputs=input_text,
+            outputs=feedback_status
         )
 
 # Launch the app
