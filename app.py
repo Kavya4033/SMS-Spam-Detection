@@ -1,78 +1,151 @@
-import gradio as gr
+import re
 import joblib
+import gradio as gr
 
-# Load your saved models
+# Load saved assets
 model = joblib.load('spam_detector_model.pkl')
 tfidf = joblib.load('tfidf_vectorizer.pkl')
 le = joblib.load('label_encoder.pkl')
 
-def classify_sms(message):
+def analyze_sms(message):
     if not message.strip():
-        return "Please enter some text.", "0.00%"
+        return (
+            "<div style='padding:15px; border-radius:8px; background-color:#f3f4f6; color:#1f2937; font-weight:bold; text-align:center;'>⚠️ Please enter some text to analyze.</div>",
+            "0.00%", 
+            "N/A", 
+            "N/A", 
+            "📂 Status: **Awaiting Input**"
+        )
         
-    # Transform message to numeric TF-IDF vector
+    # 1. Base ML Model Predictions
     transformed = tfidf.transform([message])
-    
-    # Predict the target class
     prediction = model.predict(transformed)
     
-    # Safely decode the array prediction into a readable label string
-    decoded_label = le.inverse_transform(prediction.ravel())[0]
-    label_string = str(decoded_label).upper()
+    # Safely extract values handles multi-model variations smoothly
+    pred_idx = int(prediction[0])
+    decoded_label = le.inverse_transform([pred_idx])
+    label_string = str(decoded_label[0]).upper()
     
-    # Calculate target class probability percentage
-    prob = model.predict_proba(transformed) * 100
+    # Handle matrix configurations cleanly
+    prob = model.predict_proba(transformed)
+    # Extract the probability of the Spam class (index 1)
+    spam_prob = prob[0][1] * 100 
     
-    # Extracts the specific probability of the predicted class 
-    pred_idx = prediction[0]
-    class_probability = prob[0][pred_idx]
+    # 2. Advanced Feature Insights (Heuristic checks)
+    has_url = "⚠️ Yes" if re.search(r'http\S+|www\S+|https\S+', message) else "✅ None detected"
+    has_phone = "⚠️ Yes" if re.search(r'\b\d{7,15}\b', message) else "✅ None detected"
     
-    return label_string, f"{class_probability:.2f}%"
+    # Replacement for Character Counter: Text Status Label
+    if label_string == "SPAM":
+        status_display = "🚨 Message Status: **SPAM (Dangerous)**"
+    else:
+        status_display = "🛡️ Message Status: **HAM (Safe)**"
 
-# Custom CSS for styling components
+    # 3. Dynamic Visual Alert HTML Generator
+        # 3. Dynamic Visual Alert HTML Generator
+    if label_string == "SPAM":
+        alert_html = f"""
+        <div style="padding: 20px; border-radius: 12px; background-color: #fee2e2; border: 2px solid #ef4444; text-align: center; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+            <span style="font-size: 2rem; display: block; margin-bottom: 5px;">🚨</span>
+            <strong style="font-size: 1.4rem; letter-spacing: 0.5px; color: #000000; display: block;">SECURITY WARNING: SPAM DETECTED</strong>
+            <p style="margin-top: 8px; font-size: 1rem; color: #000000;">This message displays high-risk structural matches typically linked to phishing, fraud, or advertisement scams.</p>
+        </div>
+        """
+
+    else:
+        alert_html = f"""
+        <div style="padding: 20px; border-radius: 12px; background-color: #dcfce7; border: 2px solid #22c55e; color: #166534; text-align: center; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+            <span style="font-size: 2rem; display: block; margin-bottom: 5px;">🛡️</span>
+            <strong style="font-size: 1.4rem; tracking: 0.5px;">SECURE & LEGITIMATE (HAM)</strong>
+            <p style="margin-top: 8px; font-size: 1rem; color: #14532d;">This text looks safe. It resembles natural conversational patterns and displays standard verification metrics.</p>
+        </div>
+        """
+
+    return alert_html, f"{spam_prob:.2f}%", has_url, has_phone, status_display
+
+# --- Interactive Examples Library ---
+example_templates = [
+    ["Hey, are we still meeting up for lunch today at 1 PM?"],
+    ["CONGRATULATIONS! You have won a free PS5 gift card. Call 0800123 to claim your prize now!"],
+    ["Urgent: Your bank account passcode has expired. Please verify your identity here."],
+    ["Can you please pick up some milk on your way home from work? Thanks!"]
+]
+
+# --- Custom UI Stylesheet injection ---
 custom_css = """
-body { background-color: #f9fafb; }
-.container { max-width: 900px; margin: auto; padding-top: 2rem; }
-.header { text-align: center; margin-bottom: 2rem; }
-.submit-btn { background-color: #2563eb !important; color: white !important; }
+footer { visibility: hidden !important; }
+.title-banner { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 25px; border-radius: 12px; color: white; text-align: center; margin-bottom: 25px; }
+.meta-box { background-color: var(--background-fill-secondary); border-radius: 8px; padding: 12px; text-align: center; font-size: 1.05rem; font-weight: 600; }
 """
 
-# Build the improved visual UI using standard blocks
-with gr.Blocks(title="SMS Spam Detector") as demo:
-    with gr.Group(elem_classes="container"):
-        # Application Header
-        gr.Markdown(
-            """
-            #  SMS Spam Detection System
-            Analyze incoming text messages in real-time to identify spam or legitimate communications.
-            """,
-            elem_classes="header"
-        )
-        
-        # Side-by-Side Two-Column Layout
-        with gr.Row():
-            # Left Column: User Input
-            with gr.Column(scale=1):
-                gr.Markdown("### ✉️ Input Message")
-                input_text = gr.Textbox(
-                    lines=5, 
-                    placeholder="Type or paste your SMS message here...",
-                    label="SMS Text"
-                )
-                submit_btn = gr.Button("🔍 Analyze Message", elem_classes="submit-btn")
+# Assemble the UI Layout Structure
+with gr.Blocks(title="SMS Spam Detection Dashboard") as demo:
+    
+    # Header Banner (Removed "Firewall")
+    gr.HTML(
+        """
+        <div class="title-banner">
+            <h1 style="color: white; margin: 0; font-size: 2.2rem; font-weight: 800;">🛡️ SMS Spam Detection System</h1>
+            <p style="color: #dbeafe; margin: 8px 0 0 0; font-size: 1.1rem;">Enterprise NLP security analysis engine for incoming real-time messages</p>
+        </div>
+        """
+    )
+    
+    with gr.Row():
+        # Left Workspace: Core Processing
+        with gr.Column(scale=3):
+            gr.Markdown("### 📥 Input Core")
+            input_text = gr.Textbox(
+                lines=6, 
+                placeholder="Type, paste, or select a sample SMS message from below to initiate analysis...",
+                label="Message Content Pipeline"
+            )
             
-            # Right Column: Visual Results
-            with gr.Column(scale=1):
-                gr.Markdown("### Classification Analysis")
-                output_label = gr.Label(label="Prediction Result")
-                output_prob = gr.Textbox(label="Confidence Level", interactive=False)
-        
-        # Link the button action to our classification function
-        submit_btn.click(
-            fn=classify_sms,
-            inputs=input_text,
-            outputs=[output_label, output_prob]
-        )
+            # Action controls (Removed "Firewall")
+            with gr.Row():
+                clear_btn = gr.Button("♻️ Clear Text", variant="secondary")
+                submit_btn = gr.Button("🔍 Analyze Message Log", variant="primary")
+            
+            # Injected Clickable Preset Examples
+            gr.Examples(
+                examples=example_templates,
+                inputs=input_text,
+                label="💡 Quick Test Templates"
+            )
 
-# Launch the app
-demo.launch(share=True, css=custom_css)
+        # Right Workspace: Deep Insights Reporting Matrix
+        with gr.Column(scale=2):
+            gr.Markdown("### 📊 Live Diagnostic Insights")
+            
+            # HTML Security Status Output Block
+            output_html = gr.HTML(value="<div style='text-align:center; padding:20px; color:var(--text-color-subdued);'>Awaiting engine execution query...</div>")
+            
+            # Replaced Character/Word count box with the new structural label status
+            output_meta = gr.Markdown(value="📂 Status: **Awaiting Input**", elem_classes="meta-box")
+            
+            # Risk Breakdown metrics wrapped inside a proper Layout Group container
+            with gr.Group():
+                gr.Markdown("#### Risk Assessment Matrix")
+                output_prob = gr.Textbox(label="Evaluated Spam Probability Score", interactive=False)
+                
+            with gr.Accordion("🔍 Structural Risk Insights", open=True):
+                output_url = gr.Textbox(label="Contains URL/Hyperlinks", interactive=False)
+                output_phone = gr.Textbox(label="Contains Phone Number Sequences", interactive=False)
+
+    # Establish Reactive Bindings
+    submit_btn.click(
+        fn=analyze_sms,
+        inputs=input_text,
+        outputs=[output_html, output_prob, output_url, output_phone, output_meta]
+    )
+    
+    # Connect standard clear reset mechanism
+    clear_btn.click(
+        fn=lambda: ("", "<div style='text-align:center; padding:20px; color:var(--text-color-subdued);'>Awaiting engine execution query...</div>", "0.00%", "N/A", "N/A", "📂 Status: **Awaiting Input**"),
+        inputs=None,
+        outputs=[input_text, output_html, output_prob, output_url, output_phone, output_meta]
+    )
+
+# Launch local thread pipeline with styling parameters
+if __name__ == "__main__":
+    demo.launch(share=True, theme=gr.themes.Soft(), css=custom_css)
