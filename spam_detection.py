@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import warnings
+import matplotlib.pyplot as plt # 👈 New Import
 
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -18,16 +19,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.calibration import CalibratedClassifierCV
 
-# Suppress the deprecation warning you saw in your terminal
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # =====================================================================
 # 🎛️ CONFIGURATION: CHOOSE YOUR MAIN MODEL HERE
 # =====================================================================
-# Options: "Multinomial Naive Bayes", "K-Nearest Neighbors (KNN)", 
-#          "Random Forest", "Logistic Regression", "Linear SVM"
 CHOSEN_PROJECT_MODEL = "Linear SVM"
-
 # =====================================================================
 # 1. DATA LOADING & CLEANING
 # =====================================================================
@@ -46,6 +43,23 @@ if not csv_files:
 df = pd.read_csv(csv_files[0], encoding='latin-1') 
 df = df.iloc[:, :2] 
 df.columns = ['label', 'message']
+
+# --- 📊 NEW: CALCULATE & DISPLAY DATASET STRUCTURE ---
+total_records = len(df)
+ham_count = (df['label'] == 'ham').sum()
+spam_count = (df['label'] == 'spam').sum()
+
+# Compute percentages safely
+ham_pct = (ham_count / total_records) * 100
+spam_pct = (spam_count / total_records) * 100
+
+print("\n=============================================")
+print("📊 KAGGLER DATASET METRICS & PROFILE")
+print("=============================================")
+print(f"Total SMS Messages Sampled : {total_records:,}")
+print(f" Legitimate (Ham) Records : {ham_count:,} ({ham_pct:.2f}%)")
+print(f" Malicious (Spam) Records  : {spam_count:,} ({spam_pct:.2f}%)")
+print("=============================================\n")
 
 # =====================================================================
 # 2. PREPROCESSING & VECTORIZATION
@@ -66,18 +80,16 @@ X_train_tfidf = tfidf.fit_transform(X_train)
 X_test_tfidf = tfidf.transform(X_test)
 
 # =====================================================================
-# 3. INITIALIZE ALL MODELS (Fixing the SVC probability warning)
+# 3. INITIALIZE ALL MODELS
 # =====================================================================
 models = {
     "Multinomial Naive Bayes": MultinomialNB(class_prior=[0.5, 0.5]),
     "K-Nearest Neighbors (KNN)": KNeighborsClassifier(n_neighbors=5),
     "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
     "Logistic Regression": LogisticRegression(random_state=42),
-    # Fixed using CalibratedClassifierCV to avoid future deprecation errors
     "Linear SVM": CalibratedClassifierCV(SVC(kernel='linear', random_state=42))
 }
 
-# Verify your choice exists
 if CHOSEN_PROJECT_MODEL not in models:
     raise ValueError(f"Invalid model chosen. Choose from: {list(models.keys())}")
 
@@ -104,10 +116,35 @@ for name, model in models.items():
         "Spam F1-Score": f"{f1 * 100:.2f}%"
     })
 
-# Print performance matrix
+# Print performance matrix table
 results_df = pd.DataFrame(results)
 print("\n--- 📊 MODEL PERFORMANCE COMPARISON ---")
 print(results_df.to_string(index=False))
+
+# --- GENERATE GENERATED BAR CHART GRAPH ---
+print("\n📊 Generating visualization chart...")
+plot_df = results_df.copy()
+for col in ["Accuracy", "Spam Precision", "Spam Recall", "Spam F1-Score"]:
+    plot_df[col] = plot_df[col].str.rstrip('%').astype('float')
+
+# Plot grouped metrics together side by side
+ax = plot_df.plot(x="Model", y=["Accuracy", "Spam Precision", "Spam Recall", "Spam F1-Score"], 
+                  kind="bar", figsize=(13, 6), width=0.8, color=['#3b82f6', '#10b981', '#f59e0b', '#ef4444'])
+
+plt.title("SMS Spam Detection - Model Performance Comparison", fontsize=14, fontweight='bold', pad=15)
+plt.ylabel("Percentage (%)", fontsize=12)
+plt.xlabel("Machine Learning Models", fontsize=12)
+plt.xticks(rotation=15, ha="right")
+plt.ylim(0, 115) 
+plt.grid(axis='y', linestyle='--', alpha=0.4)
+
+# Print percentage text over every single bar element
+for container in ax.containers:
+    ax.bar_label(container, fmt='%.1f%%', padding=3, fontsize=8)
+
+plt.tight_layout()
+plt.savefig("model_comparison.png", dpi=300) # Saved directly to your root folder
+plt.show()
 
 # =====================================================================
 # 5. LIVE CUSTOM TEXT TESTING FOR ALL MODELS
@@ -123,7 +160,6 @@ def predict_custom_message(text_message):
         prob = model.predict_proba(transformed_text)[0]
         spam_prob = prob[1] * 100
         
-        # Add a star indicator to show which model is your designated choice
         marker = "⭐ [YOUR CHOICE]" if name == CHOSEN_PROJECT_MODEL else ""
         print(f" -> {name:25}: [{label_result}] ({spam_prob:.1f}% spam probability) {marker}")
 
