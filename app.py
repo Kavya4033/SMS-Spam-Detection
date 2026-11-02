@@ -55,7 +55,7 @@ def analyze_sms(message):
     else:
         alert_html = f"""
 <div style="padding: 20px; border-radius: 12px; background-color: #dcfce7; border: 2px solid #22c55e; color: #166534; text-align: center; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
-    <span style="font-size: 2rem; display: block; margin-bottom: 5px;"></span>
+    <span style="font-size: 2rem; display: block; margin-bottom: 5px;">🛡️</span>
     <strong style="font-size: 1.4rem; tracking: 0.5px; color: #000000;">SECURE & LEGITIMATE (HAM)</strong>
     <p style="margin-top: 8px; font-size: 1rem; color:#000000;">This text looks safe. It resembles natural conversational patterns and displays standard verification metrics.</p>
 </div>
